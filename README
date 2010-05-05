@@ -1,0 +1,18 @@
+A scala port of Basho's Bitcask - local key/value store (http://bitbucket.org/basho/bitcask)
+
+The Bitcask is soooooooo simple(http://downloads.basho.com/papers/bitcask-intro.pdf), that I think I can write my own.
+
+There are some different between Bitcask and bitcask-scala.
+bitcask-scala set the valueSize to 0xFFFFFFFF as this record has been removed.
+But Bitcask use <<"bitcask_tombstone">> as removed value.
+
+I use RandomAccessFile, it will flush every writing.
+
+And I do not implement lock, merge and fold.
+
+I run it on my DouCore E6550, Mint 8 (32bit) PC.
+8.927000 s for writing 1048576 k/vs
+0.008513 ms per writing
+
+19.451000 s for reading 1048576 k/vs
+0.018550 ms per reading

@@ -1,0 +1,7 @@
+# IDEA project files
+*.iml
+.idea/
+
+# misc
+tmp/
+logs/
