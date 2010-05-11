@@ -10,9 +10,17 @@ I use RandomAccessFile, it will flush every writing.
 
 And I do not implement lock, merge and fold.
 
-I run it on my DouCore E6550, Mint 8 (32bit) PC.
+I run it on my Intel Core Dou E6550, Mint 8 (32bit) PC. FASTER than Bitcask:)
+(Scala 2.8.0.RC1)
 8.927000 s for writing 1048576 k/vs
 0.008513 ms per writing
 
 19.451000 s for reading 1048576 k/vs
 0.018550 ms per reading
+
+(Scala 2.8.0.RC2)
+8.728000 s for writing 1048576 k/vs
+0.008324 ms per writing
+
+18.691000 s for reading 1048576 k/vs
+0.017825 ms per reading
