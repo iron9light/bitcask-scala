@@ -23,11 +23,11 @@ class BitcaskTest {
   @Before
   def cleanup() {
     val dir = new File("./tmp")
-    dir.listFiles(new FilenameFilter {
+    Option(dir.listFiles(new FilenameFilter {
       def accept(dir: File, name: String) = {
         name.matches(BitcaskFile.regex)
       }
-    }).foreach(_.delete())
+    })).getOrElse(Array.empty).foreach(_.delete())
   }
 
   @Test
