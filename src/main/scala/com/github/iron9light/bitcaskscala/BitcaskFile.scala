@@ -69,7 +69,9 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     if (buffer.capacity() < size) buffer = ByteBuffer.allocate(size) else buffer.clear().limit(size)
 
     file.position(position)
-    file.read(buffer)
+    do {
+      file.read(buffer)
+    } while (buffer.hasRemaining)
     if (canWrite && position + size != pointer) needSeek = true
 
     buffer.flip()
@@ -118,7 +120,9 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     val offset = pointer
     if (needSeek) file.position(pointer)
     buffer.flip()
-    file.write(buffer)
+    do {
+      file.write(buffer)
+    } while (buffer.hasRemaining)
 
     pointer += length
     needSeek = false
@@ -153,7 +157,9 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     val offset = pointer
     if (needSeek) file.position(pointer)
     buffer.flip()
-    file.write(buffer)
+    do {
+      file.write(buffer)
+    } while (buffer.hasRemaining)
 
     pointer += length
     needSeek = false
@@ -169,7 +175,9 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
       val pos = file.position
 
       buffer.clear().limit(BitcaskFile.HEADER_SIZE)
-      file.read(buffer)
+      do {
+        file.read(buffer)
+      } while (buffer.hasRemaining)
       buffer.flip()
       val expectedCrc = buffer.getInt //readUInt32(buffer(0), buffer(1), buffer(2), buffer(3))
 
