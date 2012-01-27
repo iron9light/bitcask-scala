@@ -63,7 +63,7 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
 
   private var pointer = 0L
   private var needSeek = false
-  private var buffer = ByteBuffer.allocate(32)
+  private var buffer = ByteBuffer.allocateDirect(32)
   private val crc = new CRC32()
 
   def read(position: Int, size: Int): Option[Array[Byte]] = {
@@ -105,17 +105,21 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     require(valueSize <= BitcaskFile.MAXVALSIZE)
 
     val length = BitcaskFile.HEADER_SIZE + keySize + valueSize
-    if (buffer.capacity() < length) buffer = ByteBuffer.allocate(length) else buffer.clear()
-
-    buffer.position(4)
-    buffer.putInt(timestamp)
-    buffer.putShort(keySize.toShort)
-    buffer.putInt(valueSize)
-    buffer.put(key)
-    buffer.put(value)
+    if (buffer.capacity() < length) buffer = ByteBuffer.allocateDirect(length) else buffer.clear()
 
     crc.reset()
-    crc.update(buffer.array, 4, length - 4)
+    buffer.position(4)
+    buffer.putInt(timestamp)
+    updateInt(crc, timestamp)
+    buffer.putShort(keySize.toShort)
+    updateShort(crc, keySize)
+    buffer.putInt(valueSize)
+    updateInt(crc, valueSize)
+    buffer.put(key)
+    crc.update(key)
+    buffer.put(value)
+    crc.update(value)
+    
     val crcValue = crc.getValue
 
     buffer.putInt(0, crcValue.toInt)
@@ -140,19 +144,22 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     //    val valueSize = 0xFFFFFFFF
 
     val length = BitcaskFile.HEADER_SIZE + keySize
-    if (buffer.capacity < length) buffer = ByteBuffer.allocate(length) else buffer.clear()
+    if (buffer.capacity < length) buffer = ByteBuffer.allocateDirect(length) else buffer.clear()
 
+    crc.reset()
     buffer.position(4)
     buffer.putInt(timestamp)
+    updateInt(crc, timestamp)
     buffer.putShort(keySize.toShort)
+    updateShort(crc, keySize)
 
     // valueSize = 0xFFFFFFFF
     buffer.put(BitcaskFile.TOMBSTONE)
+    crc.update(BitcaskFile.TOMBSTONE)
 
     buffer.put(key)
+    crc.update(key)
 
-    crc.reset()
-    crc.update(buffer.array, 4, length - 4)
     val crcValue = crc.getValue
 
     buffer.putInt(0, crcValue.toInt)
@@ -185,11 +192,13 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
       val expectedCrc = buffer.getInt //readUInt32(buffer(0), buffer(1), buffer(2), buffer(3))
 
       crc.reset()
-      crc.update(buffer.array, 4, BitcaskFile.HEADER_SIZE - 4)
 
       val timestamp = buffer.getInt // readUInt32(buffer(4), buffer(5), buffer(6), buffer(7))
+      updateInt(crc, timestamp)
       val keySize = buffer.getShort & 0xFFFF // readUInt16(buffer(8), buffer(9))
+      updateShort(crc, keySize)
       val valueSize = buffer.getInt // readUInt32(buffer(10), buffer(11), buffer(12), buffer(13))
+      updateInt(crc, valueSize)
 
       val key = new Array[Byte](keySize)
       file.read(ByteBuffer.wrap(key))
