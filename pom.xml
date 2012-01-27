@@ -56,7 +56,15 @@
                 </executions>
                 <configuration>
                     <scalaVersion>${scala.version}</scalaVersion>
+                    <compilerPlugins>
+                      <compilerPlugin>
+                        <groupId>org.scala-lang.plugins</groupId>
+                        <artifactId>continuations</artifactId>
+                        <version>${scala.version}</version>
+                      </compilerPlugin>
+                    </compilerPlugins>
                     <args>
+                        <arg>-P:continuations:enable</arg>
                         <arg>-optimise</arg>
                     </args>
                 </configuration>
