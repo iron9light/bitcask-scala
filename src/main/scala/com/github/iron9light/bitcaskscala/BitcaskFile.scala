@@ -19,7 +19,6 @@ package com.github.iron9light.bitcaskscala
 import java.util.zip.CRC32
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.channels.FileChannel.MapMode
 
 object BitcaskFile {
   def create(dir: File): BitcaskFile = {
@@ -67,20 +66,27 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
   private val crc = new CRC32()
 
   def read(position: Int, size: Int): Option[Array[Byte]] = {
-    val directBuffer = file.map(MapMode.READ_ONLY, position, size)
+    if (buffer.capacity() < size) buffer = ByteBuffer.allocateDirect(size) else buffer.clear().limit(size)
 
-    val expectedCrc = directBuffer.getInt
+    file.position(position)
+    do {
+      file.read(buffer)
+    } while (buffer.hasRemaining)
+    if (canWrite && position + size != pointer) needSeek = true
+
+    buffer.flip()
+    val expectedCrc = buffer.getInt
 
     crc.reset()
 
-    val timestamp = directBuffer.getInt
+    val timestamp = buffer.getInt
     updateInt(crc, timestamp)
-    val keySize = directBuffer.getShort & 0xFFFF
+    val keySize = buffer.getShort & 0xFFFF
     updateShort(crc, keySize)
-    val valueSize = directBuffer.getInt
+    val valueSize = buffer.getInt
     updateInt(crc, valueSize)
     val key = new Array[Byte](keySize)
-    directBuffer.get(key)
+    buffer.get(key)
     crc.update(key)
     if (valueSize == BitcaskFile.TOMBSTONE_SIZE) {
       val actualCrc = crc.getValue.toInt
@@ -89,7 +95,7 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     }
     else {
       val value = new Array[Byte](valueSize)
-      directBuffer.get(value)
+      buffer.get(value)
       crc.update(value)
       val actualCrc = crc.getValue.toInt
       if (expectedCrc != actualCrc) throw new IOException("CRC check failed: %s != %s".format(expectedCrc, actualCrc))
