@@ -45,7 +45,12 @@ class Bitcask(dirname: String,
 
     // Init writeFile and readFiles
     val files = BitcaskFile.listDataFiles(dir)
-    readFiles = files.sortBy(_.id).foldLeft(readFiles) {(list, f) => f.fillIndex(keyIndex); f :: list}
+    val iterator = files.sortBy(_.id).iterator
+    while (iterator.hasNext) {
+      val f = iterator.next()
+      f.fillIndex(keyIndex)
+      readFiles ::= f
+    }
 
     if (!readonly) writeFile = Some(BitcaskFile.create(dir))
 

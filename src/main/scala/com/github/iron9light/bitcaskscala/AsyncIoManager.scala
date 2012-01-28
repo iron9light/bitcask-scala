@@ -41,17 +41,21 @@ trait AsyncIoManager {
   }
 }
 
+object AsyncFileIoManager {
+  implicit def toChannel(manager: AsyncFileIoManager) = manager.channel
+}
+
 trait AsyncFileIoManager {
   protected def channel: AsynchronousFileChannel
 
   def read(dst: ByteBuffer, position: Long): Int@suspendable = shift {
     f: (Int => Unit) => {
-      channel.read(dst, position, null, new CompletionHandler[java.lang.Integer, Any] {
-        def completed(result: java.lang.Integer, attachment: Any) {
-          f(result)
+      channel.read(dst, position, f, new CompletionHandler[java.lang.Integer, Int => Unit] {
+        def completed(result: java.lang.Integer, attachment: Int => Unit) {
+          attachment(result)
         }
 
-        def failed(exc: Throwable, attachment: Any) {
+        def failed(exc: Throwable, attachment: Int => Unit) {
           throw exc
         }
       })
@@ -61,12 +65,12 @@ trait AsyncFileIoManager {
   def write(src: ByteBuffer, position: Long): Int@suspendable = {
     shift {
       f: (Int => Unit) => {
-        channel.write(src, position, null, new CompletionHandler[java.lang.Integer, Any] {
-          def completed(result: Integer, attachment: Any) {
-            f(result)
+        channel.write(src, position, f, new CompletionHandler[java.lang.Integer, Int => Unit] {
+          def completed(result: Integer, attachment: Int => Unit) {
+            attachment(result)
           }
 
-          def failed(exc: Throwable, attachment: Any) {
+          def failed(exc: Throwable, attachment: Int => Unit) {
             throw exc
           }
         })

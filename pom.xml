@@ -38,6 +38,11 @@
             <version>4.10</version>
             <scope>test</scope>
         </dependency>
+      <dependency>
+        <groupId>iron9light</groupId>
+        <artifactId>erla</artifactId>
+        <version>0.1-SNAPSHOT</version>
+      </dependency>
     </dependencies>
 
     <build>

@@ -19,6 +19,8 @@ package com.github.iron9light.bitcaskscala
 import java.util.zip.CRC32
 import java.io._
 import java.nio.ByteBuffer
+import java.nio.channels.AsynchronousFileChannel
+import util.continuations._
 
 object BitcaskFile {
   def create(dir: File): BitcaskFile = {
@@ -57,22 +59,20 @@ object BitcaskFile {
 class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = false) extends Closeable with CrcHelper {
   private val file = {
     if (canWrite && !f.exists) f.createNewFile()
-    new RandomAccessFile(f, if (canWrite) "rw" else "r").getChannel
+//    new RandomAccessFile(f, if (canWrite) "rw" else "r").getChannel
+    new AsyncFileIoManager {
+      protected def channel: AsynchronousFileChannel = throw new RuntimeException("Not implemented.") // todo: not implemented
+    }
   }
 
-  private var pointer = 0L
-  private var needSeek = false
-  private var buffer = ByteBuffer.allocateDirect(32)
-  private val crc = new CRC32()
+  private[this] var pointer = 0L
+  private[this] var buffer = ByteBuffer.allocateDirect(32)
+  private[this] val crc = new CRC32()
 
-  def read(position: Int, size: Int): Option[Array[Byte]] = {
+  def read(position: Int, size: Int): Option[Array[Byte]]@suspendable = {
     if (buffer.capacity() < size) buffer = ByteBuffer.allocateDirect(size) else buffer.clear().limit(size)
 
-    file.position(position)
-    do {
-      file.read(buffer)
-    } while (buffer.hasRemaining)
-    if (canWrite && position + size != pointer) needSeek = true
+    file.read(buffer, position)
 
     buffer.flip()
     val expectedCrc = buffer.getInt
@@ -103,7 +103,7 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     }
   }
 
-  def write(key: Array[Byte], value: Array[Byte]): (Int, Int, Int) = {
+  def write(key: Array[Byte], value: Array[Byte]): (Int, Int, Int)@suspendable = {
     val timestamp = BitcaskFile.getTimestamp
     val keySize = key.length
     require(keySize <= BitcaskFile.MAXKEYSIZE)
@@ -131,19 +131,15 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     buffer.putInt(0, crcValue.toInt)
 
     val offset = pointer
-    if (needSeek) file.position(pointer)
     buffer.flip()
-    do {
-      file.write(buffer)
-    } while (buffer.hasRemaining)
+    file.write(buffer, pointer)
 
     pointer += length
-    needSeek = false
 
     (offset.toInt, length, timestamp)
   }
 
-  def delete(key: Array[Byte]): (Int, Int, Int) = {
+  def delete(key: Array[Byte]): (Int, Int, Int)@suspendable = {
     val timestamp = BitcaskFile.getTimestamp
     val keySize = key.length
     require(keySize <= BitcaskFile.MAXKEYSIZE)
@@ -171,29 +167,24 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
     buffer.putInt(0, crcValue.toInt)
 
     val offset = pointer
-    if (needSeek) file.position(pointer)
     buffer.flip()
-    do {
-      file.write(buffer)
-    } while (buffer.hasRemaining)
+    file.write(buffer, pointer)
 
     pointer += length
-    needSeek = false
 
     (offset.toInt, length, timestamp)
   }
 
-  def fillIndex(index: BitcaskIndex) {
-    file.position(0)
+  def fillIndex(index: BitcaskIndex): Unit@suspendable = {
+    var position = 0L
 
     var length = file.size
     while (length > 0) {
-      val pos = file.position
-
+      val pos = position
+      
       buffer.clear().limit(BitcaskFile.HEADER_SIZE)
-      do {
-        file.read(buffer)
-      } while (buffer.hasRemaining)
+      file.read(buffer, position)
+      position += BitcaskFile.HEADER_SIZE
       buffer.flip()
       val expectedCrc = buffer.getInt //readUInt32(buffer(0), buffer(1), buffer(2), buffer(3))
 
@@ -207,7 +198,8 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
       updateInt(crc, valueSize)
 
       val key = new Array[Byte](keySize)
-      file.read(ByteBuffer.wrap(key))
+      file.read(ByteBuffer.wrap(key), position)
+      position += keySize
       crc.update(key)
 
       if (valueSize == BitcaskFile.TOMBSTONE_SIZE) {
@@ -215,18 +207,21 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
         if (expectedCrc != actualCrc) throw new IOException("CRC check failed: %s != %s".format(expectedCrc, actualCrc))
 
         index.remove(key)
+        shiftUnit[Null, Unit, Unit](null)
       } else {
         val value = new Array[Byte](valueSize)
-        file.read(ByteBuffer.wrap(value))
+        file.read(ByteBuffer.wrap(value), position)
+        position += valueSize
         crc.update(value)
 
         val actualCrc = crc.getValue.toInt
         if (expectedCrc != actualCrc) throw new IOException("CRC check failed: %s != %s".format(expectedCrc, actualCrc))
 
         index.update(key, BitcaskEntry(this, BitcaskFile.HEADER_SIZE + keySize + valueSize, pos.toInt, timestamp))
+        null
       }
 
-      val size = file.position - pos
+      val size = position - pos
 
       length -= size
     }
