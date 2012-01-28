@@ -18,6 +18,10 @@ package com.github.iron9light.bitcaskscala
 
 import java.io.{FilenameFilter, File}
 import org.junit.{Before, Assert, Test}
+import util.continuations._
+import akka.util.duration._
+import akka.util.Duration
+import akka.dispatch.{ExecutionContext, Await}
 
 class BitcaskTest {
   @Before
@@ -29,6 +33,14 @@ class BitcaskTest {
       }
     })).getOrElse(Array.empty).foreach(_.delete())
   }
+  
+  private[this] implicit val timeout = 1.second
+  
+  private[this] implicit val executionContext: ExecutionContext = throw new RuntimeException("not implemented") // todo: not implemented 
+  
+  private def await[T](x: => T@suspendable)(implicit atMost: Duration) = {
+    Await.result(AsFuture(x), atMost)
+  }
 
   @Test
   def test2() {
@@ -36,11 +48,11 @@ class BitcaskTest {
 
     var bitcask = new Bitcask("./tmp", false)
 
-    bitcask.start
+    await(bitcask.start)
 
     for (i <- 1 to n) {
       println("write k" + i)
-      bitcask.put(("k" + i).getBytes, ("vv" + i).getBytes)
+      await(bitcask.put(("k" + i).getBytes, ("vv" + i).getBytes))
     }
 
     var keys = bitcask.listKeys.toSeq
@@ -56,7 +68,7 @@ class BitcaskTest {
 
     for (i <- 1 to n / 2) {
       println("delete k" + i)
-      bitcask.delete(("k" + i).getBytes)
+      await(bitcask.delete(("k" + i).getBytes))
     }
 
     keys = bitcask.listKeys.toSeq
@@ -68,7 +80,7 @@ class BitcaskTest {
 
     bitcask = new Bitcask("./tmp")
 
-    bitcask.start
+    await(bitcask.start)
 
     keys = bitcask.listKeys.toSeq
 
@@ -81,16 +93,16 @@ class BitcaskTest {
   @Test
   def test1() {
     val bitcask = new Bitcask("./tmp", false)
-    bitcask.start
+    await(bitcask.start)
     for (i <- 1 to 10) {
 
       println("write k" + i)
-      bitcask.put(("k" + i).getBytes, ("vv" + i).getBytes)
+      await(bitcask.put(("k" + i).getBytes, ("vv" + i).getBytes))
     }
 
     for (i <- 1 to 10) {
       println("read k" + i)
-      val value = bitcask.get(("k" + i).getBytes).get
+      val value = await(bitcask.get(("k" + i).getBytes)).get
       val expected = "vv" + i
       val actual = new String(value)
       Assert.assertArrayEquals("%s != %s".format(expected, actual), expected.getBytes, value)
@@ -99,10 +111,10 @@ class BitcaskTest {
     bitcask.stop
 
     val newBitcask = new Bitcask("""./tmp""")
-    newBitcask.start
+    Await.result(AsFuture(newBitcask.start), timeout)
 
     for (i <- 1 to 10) {
-      val value = newBitcask.get(("k" + i).getBytes)
+      val value = await(newBitcask.get(("k" + i).getBytes))
       Assert.assertArrayEquals(("vv" + i).getBytes, value.get)
     }
 
@@ -113,11 +125,11 @@ class BitcaskTest {
   def test3() {
     val n = 1024l * 1024
     var bitcask = new Bitcask("./tmp", false)
-    bitcask.start
+    await(bitcask.start)
     System.gc()
     val start = System.currentTimeMillis
     for (i <- 0l until n) {
-      bitcask.put(("k" + i).getBytes, ("v" + i).getBytes)
+      await(bitcask.put(("k" + i).getBytes, ("v" + i).getBytes))
     }
     bitcask.stop
     val time = System.currentTimeMillis - start
@@ -125,11 +137,11 @@ class BitcaskTest {
     println("%f ms per writing".format(time / n.toDouble))
 
     bitcask = new Bitcask("./tmp")
-    bitcask.start
+    await(bitcask.start)
     System.gc()
     val start2 = System.currentTimeMillis
     for (i <- 0l until n) {
-      bitcask.get(("k" + i).getBytes)
+      await(bitcask.get(("k" + i).getBytes))
     }
     bitcask.stop
     val time2 = System.currentTimeMillis - start
