@@ -62,7 +62,7 @@ object BitcaskFile {
 class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = false)(implicit executor: ExecutorService) extends Closeable with CrcHelper {
   private val file = {
     new AsyncFileIoManager {
-      protected def channel: AsynchronousFileChannel = {
+      protected val channel: AsynchronousFileChannel = {
         val options = if (canWrite) {
           Set(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
         } else {

@@ -21,7 +21,7 @@ import org.junit.{Before, Assert, Test}
 import util.continuations._
 import akka.util.duration._
 import akka.util.Duration
-import akka.dispatch.{ExecutionContext, Await}
+import akka.dispatch.{ExecutionContext, Await, Promise}
 import java.util.concurrent.{LinkedBlockingQueue, TimeUnit, ThreadPoolExecutor, Executors}
 
 class BitcaskTest {
@@ -126,28 +126,36 @@ class BitcaskTest {
   def test3() {
     val n = 1024l * 1024
     var bitcask = new Bitcask("./tmp", false)
-    await(bitcask.start)
-    System.gc()
-    val start = System.currentTimeMillis
-    for (i <- 0l until n) {
-      await(bitcask.put(("k" + i).getBytes, ("v" + i).getBytes))
-    }
-    bitcask.stop
-    val time = System.currentTimeMillis - start
-    println("%f s for writing %d k/vs".format(time / 1000.0, n))
-    println("%f ms per writing".format(time / n.toDouble))
+    val promise =
+    AsFuture {
+      bitcask.start
+      System.gc()
+      val start = System.currentTimeMillis
+      var i = 0L
+      while (i < n) {
+        i += 1
+        bitcask.put(("k" + i).getBytes, ("v" + i).getBytes)
+      }
+      bitcask.stop
+      val time = System.currentTimeMillis - start
+      println("%f s for writing %d k/vs".format(time / 1000.0, n))
+      println("%f ms per writing".format(time / n.toDouble))
 
-    bitcask = new Bitcask("./tmp")
-    await(bitcask.start)
-    System.gc()
-    val start2 = System.currentTimeMillis
-    for (i <- 0l until n) {
-      await(bitcask.get(("k" + i).getBytes))
+      bitcask = new Bitcask("./tmp")
+      bitcask.start
+      System.gc()
+      val start2 = System.currentTimeMillis
+      i = 0L
+      while (i < n) {
+        i += 1
+        bitcask.get(("k" + i).getBytes)
+      }
+      bitcask.stop
+      val time2 = System.currentTimeMillis - start
+      println()
+      println("%f s for reading %d k/vs".format(time2 / 1000.0, n))
+      println("%f ms per reading".format(time2 / n.toDouble))
     }
-    bitcask.stop
-    val time2 = System.currentTimeMillis - start
-    println()
-    println("%f s for reading %d k/vs".format(time2 / 1000.0, n))
-    println("%f ms per reading".format(time2 / n.toDouble))
+    Await.ready(promise, 10 minutes)
   }
 }
