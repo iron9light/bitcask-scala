@@ -19,11 +19,10 @@ package com.github.iron9light.bitcaskscala
 import java.util.zip.CRC32
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.channels.AsynchronousFileChannel
 import util.continuations._
-import java.nio.file.StandardOpenOption
 import java.util.concurrent.ExecutorService
-import collection.JavaConversions._
+import org.hornetq.core.asyncio.AsynchronousFile
+import org.hornetq.core.asyncio.impl.AsynchronousFileImpl
 
 object BitcaskFile {
   def create(dir: File)(implicit executor: ExecutorService): BitcaskFile = {
@@ -60,15 +59,12 @@ object BitcaskFile {
   private def getId(fileName: String) = fileName.takeWhile(c => c >= '0' && c <= '9').toInt
 }
 class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = false)(implicit executor: ExecutorService) extends Closeable with CrcHelper {
-  private val file = {
-    new AsyncFileIoManager {
-      protected val channel: AsynchronousFileChannel = {
-        val options = if (canWrite) {
-          Set(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
-        } else {
-          Set(StandardOpenOption.READ)
-        }
-        AsynchronousFileChannel.open(f.toPath, options, executor)
+  private val file: AsyncFileIoManager = {
+    new AsynchronousFileManager {
+      protected val file: AsynchronousFile = {
+        val asyncFile = new AsynchronousFileImpl(null, executor)
+        asyncFile.open(f.getCanonicalPath, 16) // FIXME: magic number
+        asyncFile
       }
     }
   }
@@ -241,7 +237,7 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
   }
 
   def sync() {
-    file.force(false)
+    file.sync()
   }
 
   def close() {
