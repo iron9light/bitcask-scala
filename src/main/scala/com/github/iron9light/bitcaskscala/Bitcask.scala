@@ -17,6 +17,7 @@
 package com.github.iron9light.bitcaskscala
 
 import java.io._
+import java.util.concurrent.ExecutorService
 
 final case class BitcaskEntry(file: BitcaskFile, valueSize: Int, valuePos: Int, timestamp: Int)
 
@@ -28,7 +29,7 @@ class Bitcask(dirname: String,
               val readonly: Boolean = true,
               val maxFileSize: Int = Bitcask.DEFAULT_MAX_FILE_SIZE,
               val syncOnPut: Boolean = false,
-              val waitTime: Int = Bitcask.DEFAULT_WAIT_TIME) {
+              val waitTime: Int = Bitcask.DEFAULT_WAIT_TIME)(implicit executor: ExecutorService = null) {
   val dir = new File(dirname).getCanonicalFile
   if (!dir.exists) dir.mkdir()
   require(dir.isDirectory)

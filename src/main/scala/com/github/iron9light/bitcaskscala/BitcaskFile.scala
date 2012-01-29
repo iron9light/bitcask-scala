@@ -21,20 +21,23 @@ import java.io._
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousFileChannel
 import util.continuations._
+import java.nio.file.StandardOpenOption
+import java.util.concurrent.ExecutorService
+import collection.JavaConversions._
 
 object BitcaskFile {
-  def create(dir: File): BitcaskFile = {
+  def create(dir: File)(implicit executor: ExecutorService): BitcaskFile = {
     val id = getTimestamp
     val file = new File(dir, id.toString + ".bitcask.data")
     new BitcaskFile(file, id, true)
   }
 
-  def loadFile(f: File) = {
+  def loadFile(f: File)(implicit executor: ExecutorService) = {
     val id = getId(f.getName)
     new BitcaskFile(f, id, false)
   }
 
-  def listDataFiles(dir: File): Array[BitcaskFile] = {
+  def listDataFiles(dir: File)(implicit executor: ExecutorService): Array[BitcaskFile] = {
     val files = dir.listFiles(new FilenameFilter {
       def accept(dir: File, name: String): Boolean = {
         name.matches(regex)
@@ -56,12 +59,17 @@ object BitcaskFile {
 
   private def getId(fileName: String) = fileName.takeWhile(c => c >= '0' && c <= '9').toInt
 }
-class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = false) extends Closeable with CrcHelper {
+class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = false)(implicit executor: ExecutorService) extends Closeable with CrcHelper {
   private val file = {
-    if (canWrite && !f.exists) f.createNewFile()
-//    new RandomAccessFile(f, if (canWrite) "rw" else "r").getChannel
     new AsyncFileIoManager {
-      protected def channel: AsynchronousFileChannel = throw new RuntimeException("Not implemented.") // todo: not implemented
+      protected def channel: AsynchronousFileChannel = {
+        val options = if (canWrite) {
+          Set(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
+        } else {
+          Set(StandardOpenOption.READ)
+        }
+        AsynchronousFileChannel.open(f.toPath, options, executor)
+      }
     }
   }
 

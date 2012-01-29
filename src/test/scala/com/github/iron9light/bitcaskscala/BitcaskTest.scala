@@ -22,6 +22,7 @@ import util.continuations._
 import akka.util.duration._
 import akka.util.Duration
 import akka.dispatch.{ExecutionContext, Await}
+import java.util.concurrent.{LinkedBlockingQueue, TimeUnit, ThreadPoolExecutor, Executors}
 
 class BitcaskTest {
   @Before
@@ -36,7 +37,7 @@ class BitcaskTest {
   
   private[this] implicit val timeout = 1.second
   
-  private[this] implicit val executionContext: ExecutionContext = throw new RuntimeException("not implemented") // todo: not implemented 
+  private[this] implicit val executionContext = new ThreadPoolExecutor(4, 4, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue[Runnable]) with ExecutionContext
   
   private def await[T](x: => T@suspendable)(implicit atMost: Duration) = {
     Await.result(AsFuture(x), atMost)
