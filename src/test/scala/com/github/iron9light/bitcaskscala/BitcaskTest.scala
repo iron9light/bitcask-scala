@@ -156,7 +156,7 @@ class BitcaskTest {
       println("%f s for reading %d k/vs".format(time2 / 1000.0, n))
       println("%f ms per reading".format(time2 / n.toDouble))
     }
-    Await.ready(promise, 10 minutes)
+    Await.result(promise, 10 minutes)
   }
 
   @Test

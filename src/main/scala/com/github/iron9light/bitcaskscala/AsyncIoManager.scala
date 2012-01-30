@@ -3,45 +3,9 @@ package com.github.iron9light.bitcaskscala
 import java.nio.ByteBuffer
 import util.continuations._
 import java.lang.{Integer, Throwable}
-import java.nio.channels.{AsynchronousFileChannel, CompletionHandler, AsynchronousByteChannel}
+import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
 import org.hornetq.core.asyncio.{AIOCallback, AsynchronousFile}
 import java.io.IOException
-
-trait AsyncIoManager {
-  protected def channel: AsynchronousByteChannel
-  
-  def read(dst: ByteBuffer): Int@suspendable = {
-    shift {
-      f: (Int => Unit) => {
-        channel.read(dst, null, new CompletionHandler[java.lang.Integer, Any] {
-          def completed(result: java.lang.Integer, attachment: Any) {
-            f(result)
-          }
-
-          def failed(exc: Throwable, attachment: Any) {
-            throw exc
-          }
-        })
-      }
-    }
-  }
-  
-  def write(src: ByteBuffer): Int@suspendable = {
-    shift {
-      f: (Int => Unit) => {
-        channel.write(src, null, new CompletionHandler[java.lang.Integer, Any] {
-          def completed(result: Integer, attachment: Any) {
-            f(result)
-          }
-
-          def failed(exc: Throwable, attachment: Any) {
-            throw exc
-          }
-        })
-      }
-    }
-  }
-}
 
 trait AsyncFileIoManager {
   def read(dst: ByteBuffer, position: Long): Unit@suspendable
@@ -55,37 +19,35 @@ trait AsyncFileIoManager {
   def close()
 }
 
+object AsyncFileChannelManager {
+
+  private object completionHandler extends CompletionHandler[java.lang.Integer, Option[Throwable] => Unit] {
+    def completed(result: java.lang.Integer, attachment: Option[Throwable] => Unit) {
+      attachment(None)
+    }
+
+    def failed(exc: Throwable, attachment: Option[Throwable] => Unit) {
+      attachment(Some(exc))
+    }
+  }
+
+}
+
 trait AsyncFileChannelManager extends AsyncFileIoManager {
   protected def channel: AsynchronousFileChannel
 
   def read(dst: ByteBuffer, position: Long): Unit@suspendable = shift {
-    f: (Unit => Unit) => {
-      channel.read(dst, position, f, new CompletionHandler[java.lang.Integer, Unit => Unit] {
-        def completed(result: java.lang.Integer, attachment: Unit => Unit) {
-          attachment()
-        }
-
-        def failed(exc: Throwable, attachment: Unit => Unit) {
-          throw exc
-        }
-      })
+    f: (Option[Throwable] => Unit) => {
+      channel.read(dst, position, f, AsyncFileChannelManager.completionHandler)
     }
-  }
+  }.foreach(throw _)
 
   def write(src: ByteBuffer, position: Long): Unit@suspendable = {
     shift {
-      f: (Unit => Unit) => {
-        channel.write(src, position, f, new CompletionHandler[java.lang.Integer, Unit => Unit] {
-          def completed(result: Integer, attachment: Unit => Unit) {
-            attachment()
-          }
-
-          def failed(exc: Throwable, attachment: Unit => Unit) {
-            throw exc
-          }
-        })
+      f: (Option[Throwable] => Unit) => {
+        channel.write(src, position, f, AsyncFileChannelManager.completionHandler)
       }
-    }
+    }.foreach(throw _)
   }
 
   def size = channel.size
@@ -101,32 +63,32 @@ trait AsyncFileChannelManager extends AsyncFileIoManager {
 
 trait AsynchronousFileManager extends AsyncFileIoManager {
   protected def file: AsynchronousFile
-  
+
   def read(dst: ByteBuffer, position: Long): Unit@suspendable = shift {
-    f: (Unit => Unit) =>
-      file.read(position, dst.remaining, dst, new AIOCallback{
+    f: (Option[Throwable] => Unit) =>
+      file.read(position, dst.remaining, dst, new AIOCallback {
         def done() {
-          f()
+          f(None)
         }
-        
+
         def onError(errorCode: Int, errorMessage: String) {
-          throw new IOException("read error[%d]%s".format(errorCode, errorMessage))
+          f(Some(new IOException("read error[%d]%s".format(errorCode, errorMessage))))
         }
       })
-  }
+  }.foreach(throw _)
 
   def write(src: ByteBuffer, position: Long): Unit@suspendable = shift {
-    f: (Unit => Unit) =>
+    f: (Option[Throwable] => Unit) =>
       file.write(position, src.remaining, src, new AIOCallback {
         def done() {
-          f()
+          f(None)
         }
 
         def onError(errorCode: Int, errorMessage: String) {
-          throw new IOException("write error[%d]%s".format(errorCode, errorMessage))
+          f(Some(new IOException("write error[%d]%s".format(errorCode, errorMessage))))
         }
       })
-  }
+  }.foreach(throw _)
 
   def size: Long = file.size
 
