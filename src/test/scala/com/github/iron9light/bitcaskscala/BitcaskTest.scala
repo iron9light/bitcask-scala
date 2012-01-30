@@ -158,4 +158,11 @@ class BitcaskTest {
     }
     Await.ready(promise, 10 minutes)
   }
+
+  @Test
+  def testLoadLibrary() {
+    val property = System.getProperty("java.library.path")
+    println(property)
+    System.loadLibrary("HornetQAIO")
+  }
 }

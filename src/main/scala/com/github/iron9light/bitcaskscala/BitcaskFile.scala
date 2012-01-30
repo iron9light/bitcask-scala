@@ -62,8 +62,9 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
   private val file: AsyncFileIoManager = {
     new AsynchronousFileManager {
       protected val file: AsynchronousFile = {
+        if (canWrite && !f.exists) f.createNewFile()
         val asyncFile = new AsynchronousFileImpl(null, executor)
-        asyncFile.open(f.getCanonicalPath, 16) // FIXME: magic number
+        asyncFile.open(f.getAbsolutePath, 16) // FIXME: magic number
         asyncFile
       }
     }

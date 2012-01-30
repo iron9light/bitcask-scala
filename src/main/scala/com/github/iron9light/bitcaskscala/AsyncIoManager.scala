@@ -110,7 +110,7 @@ trait AsynchronousFileManager extends AsyncFileIoManager {
         }
         
         def onError(errorCode: Int, errorMessage: String) {
-          throw new IOException("[%d]%s".format(errorCode, errorMessage))
+          throw new IOException("read error[%d]%s".format(errorCode, errorMessage))
         }
       })
   }
@@ -123,7 +123,7 @@ trait AsynchronousFileManager extends AsyncFileIoManager {
         }
 
         def onError(errorCode: Int, errorMessage: String) {
-          throw new IOException("[%d]%s".format(errorCode, errorMessage))
+          throw new IOException("write error[%d]%s".format(errorCode, errorMessage))
         }
       })
   }
