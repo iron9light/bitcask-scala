@@ -241,7 +241,7 @@ class BitcaskFile private(f: File, val id: Int, private val canWrite: Boolean = 
   }
 
   def sync() {
-    file.force(false)
+    file.sync()
   }
 
   def close() {
