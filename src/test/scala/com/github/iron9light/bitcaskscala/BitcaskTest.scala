@@ -21,8 +21,8 @@ import org.junit.{Before, Assert, Test}
 import util.continuations._
 import akka.util.duration._
 import akka.util.Duration
-import akka.dispatch.{ExecutionContext, Await, Promise}
-import java.util.concurrent.{LinkedBlockingQueue, TimeUnit, ThreadPoolExecutor, Executors}
+import akka.dispatch.{ExecutionContext, Await}
+import java.util.concurrent.{LinkedBlockingQueue, TimeUnit, ThreadPoolExecutor}
 
 class BitcaskTest {
   @Before
@@ -37,7 +37,7 @@ class BitcaskTest {
   
   private[this] implicit val timeout = 1.second
   
-  private[this] implicit val executionContext = new ThreadPoolExecutor(4, 4, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue[Runnable]) with ExecutionContext
+  private[this] implicit val executionContext = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue[Runnable]) with ExecutionContext
   
   private def await[T](x: => T@suspendable)(implicit atMost: Duration) = {
     Await.result(AsFuture(x), atMost)
@@ -156,6 +156,6 @@ class BitcaskTest {
       println("%f s for reading %d k/vs".format(time2 / 1000.0, n))
       println("%f ms per reading".format(time2 / n.toDouble))
     }
-    Await.ready(promise, 10 minutes)
+    Await.result(promise, 10 minutes)
   }
 }
