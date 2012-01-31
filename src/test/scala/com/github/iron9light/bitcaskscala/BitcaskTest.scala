@@ -162,7 +162,7 @@ class BitcaskTest {
   @Test
   def testLoadLibrary() {
     val property = System.getProperty("java.library.path")
-    println(property)
+    println("java.library.path " + property)
     System.loadLibrary("HornetQAIO")
   }
 }

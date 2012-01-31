@@ -85,6 +85,7 @@
                 <configuration>
                     <useSystemClassLoader>false</useSystemClassLoader>
                     <argLine>-Xmx2048m</argLine>
+                    <argLine>-Djava.library.path=.</argLine>
                 </configuration>
             </plugin>
         </plugins>
